@@ -1,11 +1,14 @@
 {
   "guild_id": "1524392046813511732",
   "review_channel_id": "1565366799548162159",
-  "reviewer_role_ids": ["1565367316999442543"],
+  "reviewer_role_ids": [
+    "1565367316999442543"
+  ],
   "roles": {
     "Medal Role 1 Demo": "1565370561427800195",
     "Medal Role 2 Demo": "1565370639181811734"
   },
+  "notify_dms": false,
   "max_bytes": 8388608,
   "pending_hours": 168,
   "evidence_hours": 24,
