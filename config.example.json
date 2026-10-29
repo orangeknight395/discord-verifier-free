@@ -1,10 +1,10 @@
 {
-  "guild_id": "111111111111111111",
-  "review_channel_id": "222222222222222222",
-  "reviewer_role_ids": ["333333333333333333"],
+  "guild_id": "1524392046813511732",
+  "review_channel_id": "1565366799548162159",
+  "reviewer_role_ids": ["1565367316999442543"],
   "roles": {
-    "Verified Artist": "444444444444444444",
-    "Verified Creator": "555555555555555555"
+    "Medal Role 1 Demo": "1565370561427800195",
+    "Medal Role 2 Demo": "1565370639181811734"
   },
   "max_bytes": 4194304,
   "pending_hours": 168,
