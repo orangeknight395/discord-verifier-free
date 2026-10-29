@@ -167,9 +167,24 @@ export function extension(b) {
   if (at('RIFF') && at('WEBP', 8)) return 'webp';
   if (at('\x1aE\xdf\xa3') && new TextDecoder().decode(b.slice(0, 4096)).includes('webm')) return 'webm';
   if (b.length >= 16 && at('ftyp', 4)) {
-    const brands = [8, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60];
-    if (brands.some(n => at('qt  ', n))) return 'mov';
-    if (brands.some(n => ['isom', 'iso2', 'mp41', 'mp42', 'avc1', 'M4V '].some(s => at(s, n)))) return 'mp4';
+    // Read only the declared file-type box, never bytes in later media boxes.
+    const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+    let size = view.getUint32(0), header = 8;
+    if (size === 1) {
+      const wideSize = view.getBigUint64(8);
+      if (wideSize > 4096n) return null;
+      size = Number(wideSize); header = 16;
+    }
+    if (size < header + 8 || size > b.length || size > 4096 || (size - header - 8) % 4) return null;
+    const brands = new Set([new TextDecoder().decode(b.subarray(header, header + 4))]);
+    for (let n = header + 8; n < size; n += 4) brands.add(new TextDecoder().decode(b.subarray(n, n + 4)));
+    const has = values => values.some(value => brands.has(value));
+    // AVIF shares generic HEIF brands but is outside this bot's allowlist.
+    if (has(['avif', 'avis'])) return null;
+    if (has(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx', 'hevm', 'hevs'])) return 'heic';
+    if (has(['mif1', 'mif2', 'msf1'])) return 'heif';
+    if (brands.has('qt  ')) return 'mov';
+    if (has(['isom', 'iso2', 'mp41', 'mp42', 'avc1', 'M4V '])) return 'mp4';
   }
   return null;
 }
@@ -181,14 +196,19 @@ export function trustedURL(value) {
   } catch { return false; }
 }
 async function download(attachment, c) {
-  if (!Number.isInteger(attachment.size) || attachment.size <= 0 || attachment.size > c.max_bytes || !trustedURL(attachment.url))
-    throw new UserError(`Upload one Discord image/video under ${c.max_bytes / 1048576} MiB.`);
+  if (!Number.isInteger(attachment.size) || attachment.size <= 0) throw new UserError('Discord reported an invalid attachment size. Please upload the file again.');
+  if (attachment.size > c.max_bytes) throw new UserError(`The file exceeds the ${c.max_bytes / 1048576} MiB limit. Compress it and submit again.`);
+  if (!trustedURL(attachment.url)) throw new UserError('The attachment URL is not a supported Discord upload URL. Please upload the file again.');
   const response = await fetch(attachment.url, { redirect: 'manual', signal: AbortSignal.timeout(12000) });
-  if (response.status !== 200 || Number(response.headers.get('Content-Length')) > c.max_bytes) {
-    await response.body?.cancel(); throw new UserError('The upload is unavailable or too large. Submit it again.');
+  if (response.status !== 200) {
+    await response.body?.cancel(); throw new UserError('Discord could not provide the attachment. Please upload the file again.');
+  }
+  if (Number(response.headers.get('Content-Length')) > c.max_bytes) {
+    await response.body?.cancel(); throw new UserError(`The downloaded file exceeds the ${c.max_bytes / 1048576} MiB limit. Compress it and submit again.`);
   }
   const bytes = await readBounded(response.body, c.max_bytes), ext = extension(bytes);
-  if (bytes.length !== attachment.size || !ext) throw new UserError('Use PNG, JPEG, GIF, WebP, MP4, MOV or WebM.');
+  if (bytes.length !== attachment.size) throw new UserError('The downloaded file size did not match Discord’s attachment size. Please upload the original file again.');
+  if (!ext) throw new UserError('The file contents were not recognized as PNG, JPEG, GIF, WebP, HEIC, HEIF, MP4, MOV or WebM. Renaming a file does not convert its format.');
   return { bytes, ext };
 }
 export function components(row) {
@@ -254,7 +274,9 @@ async function submit(env, c, i, roleId) {
     const pending = { ...row, status: 'pending' };
     const form = new FormData();
     form.append('payload_json', JSON.stringify({
-      content: c.reviewer_role_ids.map(id => `<@&${id}>`).join(' '), embeds: [card(pending)],
+      content: c.reviewer_role_ids.map(id => `<@&${id}>`).join(' ') +
+        (['heic', 'heif'].includes(file.ext) ? '\nHEIC/HEIF image: a preview may be unavailable. Download the attachment and open it in a compatible image viewer to review it.' : ''),
+      embeds: [card(pending)],
       components: components(pending), allowed_mentions: { ...NONE, roles: c.reviewer_role_ids },
       nonce: row.id, enforce_nonce: true,
       attachments: [{ id: 0, filename: `SPOILER_evidence.${file.ext}` }],
@@ -266,7 +288,7 @@ async function submit(env, c, i, roleId) {
       .bind(message.id, Math.min(now() + 3600, row.expires), row.id).run();
     return `Request ${row.id} is ready for private review. Use /verification_status to check progress.`;
   } catch (e) {
-    if (!sending) await finish(env, row.id, 'failed', 'receiving', 'Upload failed. Please submit again.');
+    if (!sending) await finish(env, row.id, 'failed', 'receiving', e instanceof UserError ? e.message : 'Upload failed while contacting Discord or processing the file. Please submit again.');
     // An ambiguous send is reconciled by scanning the dedicated channel, never blindly repeated.
     throw e;
   }
