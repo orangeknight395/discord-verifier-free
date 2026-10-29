@@ -14,6 +14,6 @@
   "evidence_hours": 24,
   "audit_days": 30,
   "max_open": 25,
-  "requests_per_hour": 3,
+  "requests_per_hour": 10,
   "requests_per_day": 100
 }
