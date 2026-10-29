@@ -6,7 +6,7 @@
     "Medal Role 1 Demo": "1565370561427800195",
     "Medal Role 2 Demo": "1565370639181811734"
   },
-  "max_bytes": 4194304,
+  "max_bytes": 8388608,
   "pending_hours": 168,
   "evidence_hours": 24,
   "audit_days": 30,
