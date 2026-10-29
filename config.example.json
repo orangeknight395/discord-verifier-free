@@ -1,0 +1,16 @@
+{
+  "guild_id": "111111111111111111",
+  "review_channel_id": "222222222222222222",
+  "reviewer_role_ids": ["333333333333333333"],
+  "roles": {
+    "Verified Artist": "444444444444444444",
+    "Verified Creator": "555555555555555555"
+  },
+  "max_bytes": 4194304,
+  "pending_hours": 168,
+  "evidence_hours": 24,
+  "audit_days": 30,
+  "max_open": 25,
+  "requests_per_hour": 3,
+  "requests_per_day": 100
+}
