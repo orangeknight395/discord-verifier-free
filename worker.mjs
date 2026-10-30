@@ -207,7 +207,13 @@ async function download(attachment, c) {
     await response.body?.cancel(); throw new UserError(`The downloaded file exceeds the ${c.max_bytes / 1048576} MiB limit. Compress it and submit again.`);
   }
   const bytes = await readBounded(response.body, c.max_bytes), ext = extension(bytes);
-  if (bytes.length !== attachment.size) throw new UserError('The downloaded file size did not match Discord’s attachment size. Please upload the original file again.');
+  // Attachment metadata can differ from the CDN representation. Enforce the
+  // actual stream limit, and check transfer length only for an unencoded body.
+  const length = response.headers.get('Content-Length');
+  const encoding = response.headers.get('Content-Encoding');
+  if ((!encoding || encoding.toLowerCase() === 'identity') && length !== null &&
+      /^\d+$/.test(length) && Number(length) !== bytes.length)
+    throw new UserError('The attachment download was incomplete. Please upload the file again.');
   if (!ext) throw new UserError('The file contents were not recognized as PNG, JPEG, GIF, WebP, HEIC, HEIF, MP4, MOV or WebM. Renaming a file does not convert its format.');
   return { bytes, ext };
 }
